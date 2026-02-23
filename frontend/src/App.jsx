@@ -463,6 +463,52 @@ function App() {
   const handleUseTemplate = async (templateId) => {
     await handleExecuteTemplate(templateId)
   }
+  
+  const handleStopExecution = async (sessionId) => {
+    try {
+      console.log('🛑 请求停止执行 - 会话ID:', sessionId)
+      
+      const result = await api.stopExecution(sessionId)
+      
+      if (result.success) {
+        console.log('✅ 停止请求已发送')
+        
+        // 更新执行状态
+        setSessionExecutionStatus(prev => ({
+          ...prev,
+          [sessionId]: false
+        }))
+        
+        // 添加停止消息
+        const stopMessage = {
+          role: 'assistant',
+          content: '⚠️ 任务已被用户停止',
+          timestamp: new Date().toISOString(),
+          interrupted: true
+        }
+        
+        setMessages(prev => {
+          const newMessages = [...prev]
+          // 替换最后一条 loading 消息
+          if (newMessages.length > 0 && newMessages[newMessages.length - 1].loading) {
+            newMessages[newMessages.length - 1] = stopMessage
+          } else {
+            newMessages.push(stopMessage)
+          }
+          return newMessages
+        })
+        
+        await api.addMessage(sessionId, stopMessage)
+        
+        alert('✅ 停止请求已发送，任务将在当前步骤完成后停止')
+      } else {
+        alert(result.message || '停止失败')
+      }
+    } catch (error) {
+      console.error('❌ 停止执行失败:', error)
+      alert('停止失败: ' + (error.response?.data?.error || error.message))
+    }
+  }
 
   return (
     <div className="app">
@@ -499,6 +545,7 @@ function App() {
           onSendMessage={handleSendMessage}
           isExecuting={currentSession ? sessionExecutionStatus[currentSession.id] || false : false}
           onSaveAsTemplate={handleSaveAsTemplate}
+          onStopExecution={handleStopExecution}
           onExecuteTemplate={handleExecuteTemplate}
         />
         

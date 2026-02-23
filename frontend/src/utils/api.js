@@ -71,6 +71,12 @@ export const api = {
     return response.data
   },
 
+  // 停止执行
+  stopExecution: async (sessionId) => {
+    const response = await axios.post(`${API_BASE_URL}/sessions/${sessionId}/stop`)
+    return response.data
+  },
+
   // 模板管理
   getTemplates: async () => {
     const response = await axios.get(`${API_BASE_URL}/templates`)

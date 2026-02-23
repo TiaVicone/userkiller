@@ -276,6 +276,60 @@ def get_execution_status(session_id):
         # 如果正在执行，返回执行中状态
         return jsonify(status_info)
 
+@app.route('/api/sessions/<session_id>/stop', methods=['POST'])
+def stop_session_execution(session_id):
+    """停止会话的工作流执行"""
+    try:
+        print(f"⚠️ 收到停止请求 - 会话ID: {session_id}")
+        
+        # 检查会话是否存在
+        session = session_manager.get_session(session_id)
+        if not session:
+            print(f"❌ 会话不存在: {session_id}")
+            return jsonify({'error': '会话不存在', 'success': False}), 404
+        
+        # 检查是否正在执行
+        with execution_lock:
+            if session_id not in execution_status:
+                print(f"⚠️ 会话 {session_id} 没有正在执行的任务")
+                return jsonify({
+                    'success': False,
+                    'message': '该会话没有正在执行的任务'
+                }), 400
+            
+            if execution_status[session_id]['status'] != 'executing':
+                print(f"⚠️ 会话 {session_id} 状态不是执行中: {execution_status[session_id]['status']}")
+                return jsonify({
+                    'success': False,
+                    'message': '该会话没有正在执行的任务'
+                }), 400
+        
+        # 创建中断标志文件
+        session_dir = Path(session['workspace_path']).parent
+        interrupt_file = session_dir / '.interrupt'
+        
+        try:
+            interrupt_file.touch()
+            print(f"✅ 中断标志文件已创建: {interrupt_file}")
+            print(f"⚠️ 用户请求停止会话 {session_id} 的执行")
+            
+            return jsonify({
+                'success': True,
+                'message': '停止请求已发送，工作流将在当前步骤完成后停止'
+            })
+        except Exception as e:
+            print(f"❌ 创建中断标志失败: {str(e)}")
+            return jsonify({
+                'success': False,
+                'error': f'创建中断标志失败: {str(e)}'
+            }), 500
+            
+    except Exception as e:
+        print(f"❌ 停止执行失败: {str(e)}")
+        import traceback
+        traceback.print_exc()
+        return jsonify({'error': str(e), 'success': False}), 500
+
 @app.route('/api/sessions/<session_id>/messages', methods=['GET'])
 def get_messages(session_id):
     """获取会话的消息历史"""
@@ -436,27 +490,12 @@ def execute_template(template_id):
         temp_code_dir.mkdir(parents=True, exist_ok=True)
         temp_code_file = temp_code_dir / f'template_{template_id}_{session_id}.py'
         
-        # 智能替换代码中的路径
-        import re
-        modified_code = code_content
-        
-        # 1. 替换 workspace_path 变量赋值
-        modified_code = re.sub(
-            r'workspace_path\s*=\s*Path\([^)]+\)',
-            f'workspace_path = Path(r"{workspace_path}")',
-            modified_code
-        )
-        
-        # 2. 替换 output_path 变量赋值
-        modified_code = re.sub(
-            r'output_path\s*=\s*Path\([^)]+\)',
-            f'output_path = Path(r"{output_path}")',
-            modified_code
-        )
-        
-        # 3. 获取模板原始文件名和当前文件名的映射
+        # 构建文件名映射
         template_files = template.get('file_info', [])
         file_mapping = {}
+        
+        print(f"📝 模板文件信息: {template_files}")
+        print(f"📝 当前文件信息: {current_files}")
         
         if template_files and current_files:
             # 按文件扩展名匹配
@@ -464,33 +503,97 @@ def execute_template(template_id):
             current_by_ext = {}
             
             for tf in template_files:
-                ext = Path(tf.get('name', '')).suffix.lower()
-                if ext:
-                    template_by_ext[ext] = tf.get('name', '')
+                # 尝试多种方式获取文件名
+                name = tf.get('filename') or tf.get('name') or ''
+                if name:
+                    ext = Path(name).suffix.lower()
+                    if ext:
+                        template_by_ext[ext] = name
+                        print(f"  模板文件: {name} ({ext})")
             
             for cf in current_files:
-                ext = Path(cf.get('name', '')).suffix.lower()
-                if ext:
-                    current_by_ext[ext] = cf.get('name', '')
+                # 尝试多种方式获取文件名
+                name = cf.get('filename') or cf.get('name') or ''
+                if name:
+                    ext = Path(name).suffix.lower()
+                    if ext:
+                        current_by_ext[ext] = name
+                        print(f"  当前文件: {name} ({ext})")
             
-            # 创建文件名映射
+            # 创建文件名映射（即使文件名相同也要映射，因为路径可能不同）
             for ext, template_name in template_by_ext.items():
                 if ext in current_by_ext:
-                    file_mapping[template_name] = current_by_ext[ext]
+                    current_name = current_by_ext[ext]
+                    file_mapping[template_name] = current_name
+                    print(f"  映射: {template_name} -> {current_name}")
             
-            print(f"📝 文件名映射: {file_mapping}")
-            
-            # 4. 替换代码中的文件名引用
-            for old_name, new_name in file_mapping.items():
-                # 替换字符串中的文件名（带引号）
-                modified_code = modified_code.replace(f'"{old_name}"', f'"{new_name}"')
-                modified_code = modified_code.replace(f"'{old_name}'", f"'{new_name}'")
-                # 替换 f-string 中的文件名
-                modified_code = modified_code.replace(f'/{old_name}', f'/{new_name}')
+            print(f"📝 最终文件名映射: {file_mapping}")
         
-        print(f"📝 路径替换完成:")
+        # 如果没有文件映射，说明文件名完全相同，也需要确保路径正确
+        if not file_mapping and template_files:
+            print(f"⚠️ 文件名相同，但仍需确保路径正确")
+            for tf in template_files:
+                name = tf.get('filename') or tf.get('name') or ''
+                if name:
+                    file_mapping[name] = name
+                    print(f"  添加映射: {name} -> {name}")
+        
+        # 使用新的配置注入方式
+        from modules.template_code_generator import TemplateCodeGenerator
+        
+        # 检测模板格式并注入配置
+        if "=== 配置注入区域 START ===" in code_content or "{{WORKSPACE_PATH}}" in code_content:
+            # 新格式模板：使用配置注入
+            print("✅ 检测到新格式模板，使用配置注入方式")
+            modified_code = TemplateCodeGenerator.inject_config_to_template(
+                code_content,
+                str(workspace_path),
+                str(output_path),
+                file_mapping
+            )
+        else:
+            # 旧格式模板：使用正则表达式替换（兼容性）
+            print("⚠️ 检测到旧格式模板，使用正则表达式替换")
+            import re
+            modified_code = code_content
+            
+            # 1. 替换 workspace_path 变量赋值
+            modified_code = re.sub(
+                r'workspace_path\s*=\s*Path\([^)]+\)',
+                f'workspace_path = Path(r"{workspace_path}")',
+                modified_code
+            )
+            
+            # 2. 替换 output_path 变量赋值
+            modified_code = re.sub(
+                r'output_path\s*=\s*Path\([^)]+\)',
+                f'output_path = Path(r"{output_path}")',
+                modified_code
+            )
+            
+            # 3. 替换代码中的文件名引用（关键修复）
+            for old_name, new_name in file_mapping.items():
+                print(f"  替换文件名: '{old_name}' -> '{new_name}'")
+                
+                # 替换所有形式的文件名引用
+                # 形式1: "filename.xlsx"
+                modified_code = modified_code.replace(f'"{old_name}"', f'"{new_name}"')
+                # 形式2: 'filename.xlsx'
+                modified_code = modified_code.replace(f"'{old_name}'", f"'{new_name}'")
+                # 形式3: Path / "filename.xlsx"
+                modified_code = modified_code.replace(f'/ "{old_name}"', f'/ "{new_name}"')
+                modified_code = modified_code.replace(f"/ '{old_name}'", f"/ '{new_name}'")
+                # 形式4: 在路径中的文件名
+                modified_code = modified_code.replace(f'/{old_name}', f'/{new_name}')
+                # 形式5: f-string 中的文件名
+                modified_code = modified_code.replace(f'{{{old_name}}}', f'{{{new_name}}}')
+            
+            print(f"  文件名替换完成")
+        
+        print(f"📝 配置注入完成:")
         print(f"   workspace_path -> {workspace_path}")
         print(f"   output_path -> {output_path}")
+        print(f"   file_mapping -> {file_mapping}")
         
         # 写入临时文件
         with open(temp_code_file, 'w', encoding='utf-8') as f:

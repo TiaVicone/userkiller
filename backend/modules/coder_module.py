@@ -121,30 +121,38 @@ class CoderModule:
         libraries_str = ', '.join(technical_approach.get('libraries', ['openpyxl', 'pandas']))
         current_time = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
         
+        # 构建文件映射示例
+        file_mapping_example = {}
+        for file_info in preprocessor_result.get('processed_files', []):
+            if file_info.get('status') == 'processed':
+                filename = file_info.get('file', '')
+                if filename:
+                    file_mapping_example[filename] = filename
+        
         code_template = f'''
 【代码要求】
-1. **路径处理**：
-   - 使用 workspace_path = Path(r"{workspace_abs}") 访问输入文件
-   - 使用 output_path = Path(r"{output_abs}") 保存输出文件
-   - 所有输入文件: workspace_path / "文件名"
-   - 所有输出文件: output_path / "文件名"
 
-2. **库使用**：
+1. **路径使用**：
+   - 工作区路径: {workspace_abs}
+   - 输出路径: {output_abs}
+   - 使用 Path 对象处理路径
+
+2. **文件处理**：
+   - 输入文件在工作区中
+   - 输出文件保存到输出区
+   - 文件名: {output_filename}
+
+3. **库使用**：
    - Excel: 使用 {libraries_str}
-   - 数据处理: 使用pandas
+   - 数据处理: 使用 pandas
 
-3. **错误处理**：
-   - 添加try-except捕获异常
+4. **错误处理**：
+   - 添加 try-except 捕获异常
    - 检查文件是否存在
    - 打印清晰的进度信息
 
-4. **输出要求**：
-   - 文件名: {output_filename}
-   - 保存到: output_path / "{output_filename}"
-   - 打印处理结果统计
-
 【输出格式】
-只输出Python代码，不要任何解释。代码格式：
+只输出Python代码，不要任何解释。严格按照以下模板：
 
 ```python
 #!/usr/bin/env python3
@@ -157,6 +165,7 @@ class CoderModule:
 
 from pathlib import Path
 import sys
+import pandas as pd  # 根据需要导入其他库
 
 def main():
     """主函数"""
@@ -173,6 +182,9 @@ def main():
         print("-" * 50)
         
         # 你的处理逻辑（严格按照实现步骤）
+        # 步骤1: 读取输入文件
+        # 步骤2: 处理数据
+        # 步骤3: 保存输出文件
         
         # 保存输出文件
         output_file = output_path / "{output_filename}"
@@ -197,11 +209,10 @@ if __name__ == "__main__":
     sys.exit(0 if success else 1)
 ```
 
-【重要提示】
-- 严格按照实现步骤编写代码
-- 所有输入文件都在 workspace_path 目录下
-- 所有输出文件都保存到 output_path 目录下
-- 先检查文件是否存在再处理
+【关键提示】
+- 使用提供的实际路径: {workspace_abs} 和 {output_abs}
+- 不要使用占位符或变量，直接使用具体路径
+- 确保代码可以立即执行
 - 只输出代码，不要输出任何解释或说明
 '''
         

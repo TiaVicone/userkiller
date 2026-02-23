@@ -1,20 +1,37 @@
 import React, { useState, useRef, useEffect } from 'react'
-import { Send, ChevronDown, ChevronUp, Loader2 } from 'lucide-react'
+import { Send, ChevronDown, ChevronUp, Loader2, StopCircle } from 'lucide-react'
 import './ChatArea.css'
 
-function ChatArea({ messages, currentSession, onSendMessage, isExecuting, onSaveAsTemplate }) {
+function ChatArea({ messages, currentSession, onSendMessage, isExecuting, onSaveAsTemplate, onStopExecution }) {
   const [input, setInput] = useState('')
   const [expandedSteps, setExpandedSteps] = useState({})
   const messagesEndRef = useRef(null)
+  const textareaRef = useRef(null)
 
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' })
   }, [messages])
 
+  // 自动调整输入框高度
+  useEffect(() => {
+    const textarea = textareaRef.current
+    if (textarea) {
+      // 重置高度以获取正确的 scrollHeight
+      textarea.style.height = 'auto'
+      // 设置新高度，最小 22px，最大 200px
+      const newHeight = Math.min(Math.max(textarea.scrollHeight, 22), 200)
+      textarea.style.height = `${newHeight}px`
+    }
+  }, [input])
+
   const handleSend = () => {
     if (input.trim() && !isExecuting) {
       onSendMessage(input)
       setInput('')
+      // 重置输入框高度
+      if (textareaRef.current) {
+        textareaRef.current.style.height = 'auto'
+      }
     }
   }
 
@@ -22,6 +39,23 @@ function ChatArea({ messages, currentSession, onSendMessage, isExecuting, onSave
     if (e.key === 'Enter' && !e.shiftKey) {
       e.preventDefault()
       handleSend()
+    }
+  }
+
+  const handleInputChange = (e) => {
+    setInput(e.target.value)
+  }
+
+  // 计算输入行数（用于显示提示）
+  const lineCount = input.split('\n').length
+
+  const handleStop = async () => {
+    if (!currentSession || !isExecuting) return
+    
+    if (!confirm('确定要停止当前任务吗？已完成的步骤将被保留。')) return
+    
+    if (onStopExecution) {
+      await onStopExecution(currentSession.id)
     }
   }
 
@@ -141,25 +175,46 @@ function ChatArea({ messages, currentSession, onSendMessage, isExecuting, onSave
       <div className="input-area">
         <div className="input-container">
           <textarea
+            ref={textareaRef}
             value={input}
-            onChange={(e) => setInput(e.target.value)}
+            onChange={handleInputChange}
             onKeyPress={handleKeyPress}
-            placeholder={currentSession ? "描述您的需求或提出改进建议..." : "创建新会话或描述您的办公需求..."}
+            placeholder={currentSession ? "描述您的需求或提出改进建议... (Shift+Enter 换行)" : "创建新会话或描述您的办公需求... (Shift+Enter 换行)"}
             rows={1}
             disabled={isExecuting}
           />
-          <button 
-            className="send-btn" 
-            onClick={handleSend}
-            disabled={!input.trim() || isExecuting}
-            title={isExecuting ? "当前会话正在执行中..." : "发送消息"}
-          >
-            {isExecuting ? <Loader2 className="spinner" size={18} /> : <Send size={18} />}
-          </button>
+          
+          {/* 字符计数器（仅在输入较多时显示） */}
+          {input.length > 100 && (
+            <div className="char-counter">
+              {input.length} {lineCount > 1 && `· ${lineCount}行`}
+            </div>
+          )}
+          
+          {/* 执行中显示停止按钮，否则显示发送按钮 */}
+          {isExecuting ? (
+            <button 
+              className="stop-btn" 
+              onClick={handleStop}
+              title="停止当前任务"
+            >
+              <StopCircle size={18} />
+            </button>
+          ) : (
+            <button 
+              className="send-btn" 
+              onClick={handleSend}
+              disabled={!input.trim()}
+              title={input.trim() ? "发送消息 (Enter)" : "请输入内容"}
+            >
+              <Send size={18} />
+            </button>
+          )}
         </div>
         {isExecuting && (
           <div className="execution-hint">
-            ⚡ 当前会话正在执行中，您可以切换到其他会话继续工作
+            ⚡ 任务执行中... 
+            <span className="hint-action">点击停止按钮可中断执行</span>
           </div>
         )}
       </div>

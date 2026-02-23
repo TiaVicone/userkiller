@@ -227,6 +227,11 @@ class WorkflowEngine:
             
             while iteration < max_iterations and not code_approved:
                 iteration += 1
+                
+                # 检查中断（迭代开始前）
+                if self.check_interrupt():
+                    return self._build_interrupted_result(session_name_updated, iteration)
+                
                 self.log('Coder', f'Coder开始生成代码（第{iteration}次尝试）...')
                 
                 # Coder生成代码
@@ -241,6 +246,10 @@ class WorkflowEngine:
                     self.temp_code_dir  # 传递临时代码目录
                 )
                 
+                # 检查中断（代码生成后）
+                if self.check_interrupt():
+                    return self._build_interrupted_result(session_name_updated, iteration)
+                
                 # 记录详细的生成代码
                 coder_detail = f"生成的代码 (第{iteration}次):\n\n{coder_result['code']}"
                 self.log(f'Coder_Code_{iteration}', coder_detail)
@@ -251,6 +260,10 @@ class WorkflowEngine:
                     'status': 'completed',
                     'code': coder_result['code']
                 })
+                
+                # 检查中断（代码执行前）
+                if self.check_interrupt():
+                    return self._build_interrupted_result(session_name_updated, iteration)
                 
                 # 执行代码
                 self.log('Executor', '执行生成的代码...')
@@ -266,6 +279,10 @@ class WorkflowEngine:
                     'status': 'completed' if execution_result['success'] else 'error'
                 })
                 
+                # 检查中断（代码执行后）
+                if self.check_interrupt():
+                    return self._build_interrupted_result(session_name_updated, iteration)
+                
                 # 检查是否启用自动验收
                 if auto_review:
                     # 自动验收模式：使用Reviewer验收
@@ -275,7 +292,9 @@ class WorkflowEngine:
                         pm_result['analysis'],
                         coder_result['code'],
                         execution_result,
-                        Path(self.session['output_path'])
+                        Path(self.session['output_path']),
+                        Path(self.session['workspace_path']),
+                        file_data
                     )
                     
                     # 记录详细的验收结果
@@ -295,7 +314,15 @@ class WorkflowEngine:
                         self.log('Retry', f'需要改进，准备第{iteration + 1}次尝试...')
                         # 将反馈传递给下一次迭代
                         if iteration < max_iterations:
-                            self.coder.set_feedback(reviewer_result['feedback'])
+                            # 检查是否有深度错误分析
+                            if reviewer_result.get('needs_deep_fix'):
+                                self.coder.set_feedback(
+                                    reviewer_result['feedback'],
+                                    reviewer_result.get('error_analysis'),
+                                    reviewer_result.get('code_modifications')
+                                )
+                            else:
+                                self.coder.set_feedback(reviewer_result['feedback'])
                 else:
                     # 手动验收模式：直接返回结果，等待用户确认
                     self.log('ManualReview', '⏸️  已暂停自动验收，等待用户手动确认...')
@@ -377,6 +404,19 @@ class WorkflowEngine:
                 'session_name_updated': session_name_updated,
                 'log_file': str(self.log_file)
             }
+    
+    def _build_interrupted_result(self, session_name_updated, iteration):
+        """构建中断结果"""
+        return {
+            'success': False,
+            'workflow_steps': self.workflow_steps,
+            'logs': self.logs,
+            'iterations': iteration,
+            'message': '⚠️ 执行已被用户中断',
+            'interrupted': True,
+            'session_name_updated': session_name_updated,
+            'log_file': str(self.log_file)
+        }
     
     def _execute_code(self, code_file):
         """执行Python代码"""
