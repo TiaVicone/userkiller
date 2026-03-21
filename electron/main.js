@@ -24,7 +24,6 @@ function createWindow() {
   // 开发模式：加载Vite开发服务器
   if (process.env.NODE_ENV === 'development') {
     mainWindow.loadURL('http://localhost:3000')
-    mainWindow.webContents.openDevTools()
   } else {
     // 生产模式：加载打包后的文件
     mainWindow.loadFile(path.join(__dirname, '../frontend/dist/index.html'))

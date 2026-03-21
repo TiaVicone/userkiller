@@ -18,8 +18,11 @@ function ChatArea({ messages, currentSession, onSendMessage, isExecuting, onSave
     if (textarea) {
       // 重置高度以获取正确的 scrollHeight
       textarea.style.height = 'auto'
-      // 设置新高度，最小 22px，最大 200px
-      const newHeight = Math.min(Math.max(textarea.scrollHeight, 22), 200)
+      // 获取实际内容高度，空输入时使用最小高度
+      const scrollHeight = textarea.scrollHeight
+      const newHeight = input.trim() 
+        ? Math.min(Math.max(scrollHeight, 40), 200)
+        : 40
       textarea.style.height = `${newHeight}px`
     }
   }, [input])
@@ -30,7 +33,7 @@ function ChatArea({ messages, currentSession, onSendMessage, isExecuting, onSave
       setInput('')
       // 重置输入框高度
       if (textareaRef.current) {
-        textareaRef.current.style.height = 'auto'
+        textareaRef.current.style.height = '22px'
       }
     }
   }
