@@ -1,68 +1,108 @@
-#!/bin/bash
+#!/usr/bin/env bash
+set -euo pipefail
 
-echo "🚀 启动AI自动化办公软件..."
-echo ""
+ROOT_DIR="$(cd "$(dirname "$0")" && pwd)"
+BACKEND_DIR="$ROOT_DIR/backend"
+FRONTEND_DIR="$ROOT_DIR/frontend"
+ELECTRON_DIR="$ROOT_DIR/electron"
+BACKEND_PORT="${BACKEND_PORT:-5001}"
+FRONTEND_PORT="${FRONTEND_PORT:-3000}"
+START_ELECTRON="${START_ELECTRON:-0}"
+PIDS=()
 
-# 检查Python
-if ! command -v python3 &> /dev/null; then
-    echo "❌ 错误：未找到Python3，请先安装Python 3.8+"
+require_cmd() {
+  if ! command -v "$1" >/dev/null 2>&1; then
+    echo "❌ Missing command: $1"
     exit 1
+  fi
+}
+
+cleanup() {
+  for pid in "${PIDS[@]:-}"; do
+    if kill -0 "$pid" >/dev/null 2>&1; then
+      kill "$pid" >/dev/null 2>&1 || true
+    fi
+  done
+}
+
+trap cleanup EXIT INT TERM
+
+wait_for_http() {
+  local url="$1"
+  local name="$2"
+  for _ in {1..60}; do
+    if curl -fsS "$url" >/dev/null 2>&1; then
+      echo "✅ $name is ready: $url"
+      return 0
+    fi
+    sleep 1
+  done
+
+  echo "❌ Timed out waiting for $name: $url"
+  exit 1
+}
+
+print_step() {
+  echo
+  echo "==> $1"
+}
+
+require_cmd node
+require_cmd npm
+require_cmd curl
+
+if [[ ! -d "$BACKEND_DIR" || ! -d "$FRONTEND_DIR" ]]; then
+  echo "❌ backend/frontend directories not found"
+  exit 1
 fi
 
-# 检查Node.js
-if ! command -v node &> /dev/null; then
-    echo "❌ 错误：未找到Node.js，请先安装Node.js 16+"
+if [[ ! -f "$BACKEND_DIR/config.json" ]]; then
+  echo "❌ Missing backend/config.json"
+  echo "   Copy backend/config.example.json to backend/config.json and fill your DeepSeek API key first."
+  exit 1
+fi
+
+print_step "Installing backend dependencies"
+npm --prefix "$BACKEND_DIR" install
+
+print_step "Installing frontend dependencies"
+npm --prefix "$FRONTEND_DIR" install
+
+if [[ "$START_ELECTRON" == "1" ]]; then
+  if [[ ! -d "$ELECTRON_DIR" ]]; then
+    echo "❌ electron directory not found"
     exit 1
+  fi
+  print_step "Installing electron dependencies"
+  npm --prefix "$ELECTRON_DIR" install
 fi
 
-# 获取脚本所在目录
-SCRIPT_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
+print_step "Starting backend on port $BACKEND_PORT"
+PORT="$BACKEND_PORT" npm --prefix "$BACKEND_DIR" run dev &
+PIDS+=("$!")
+wait_for_http "http://localhost:$BACKEND_PORT/api/health" "backend"
 
-# 检查虚拟环境
-if [ ! -d "$SCRIPT_DIR/backend/venv" ]; then
-    echo "⚠️  未找到虚拟环境，正在创建..."
-    cd "$SCRIPT_DIR/backend"
-    python3 -m venv venv
-    echo "✅ 虚拟环境创建成功"
-    
-    echo "📦 安装Python依赖..."
-    source venv/bin/activate
-    pip install -r requirements.txt
-    echo "✅ 依赖安装完成"
-else
-    echo "✅ 虚拟环境已存在"
+print_step "Starting frontend on port $FRONTEND_PORT"
+npm --prefix "$FRONTEND_DIR" run dev -- --host 0.0.0.0 --port "$FRONTEND_PORT" &
+PIDS+=("$!")
+wait_for_http "http://localhost:$FRONTEND_PORT" "frontend"
+
+echo
+
+echo "🎉 Userkiller trial environment is ready"
+echo "   Frontend: http://localhost:$FRONTEND_PORT"
+echo "   Backend : http://localhost:$BACKEND_PORT"
+
+if [[ "$START_ELECTRON" == "1" ]]; then
+  print_step "Starting Electron"
+  (
+    cd "$ELECTRON_DIR"
+    npm run dev
+  ) &
+  PIDS+=("$!")
+  echo "🖥️  Electron launch requested"
 fi
 
-# 启动后端
-echo "📦 启动后端服务..."
-cd "$SCRIPT_DIR/backend"
-source venv/bin/activate
-python app.py &
-BACKEND_PID=$!
-echo "✅ 后端进程ID: $BACKEND_PID"
-
-# 等待后端启动
-sleep 3
-
-# 启动前端
-echo "🎨 启动前端服务..."
-cd "$SCRIPT_DIR/frontend"
-npm run dev &
-FRONTEND_PID=$!
-echo "✅ 前端进程ID: $FRONTEND_PID"
-
-# 等待前端启动
-sleep 5
-
-# 启动Electron
-echo "🖥️  启动Electron应用..."
-cd "$SCRIPT_DIR/electron"
-NODE_ENV=development npm start
-
-# 清理进程
-echo ""
-echo "🛑 正在停止服务..."
-kill $BACKEND_PID 2>/dev/null
-kill $FRONTEND_PID 2>/dev/null
-echo "✅ 已停止所有服务"
-
+echo
+echo "Press Ctrl+C to stop all started processes."
+wait

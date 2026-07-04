@@ -1,18 +1,53 @@
 :root {
-  --bg-primary: #0a0a0f;
-  --bg-secondary: #13131a;
-  --bg-tertiary: #1a1a24;
-  --bg-hover: #22222e;
-  --border-color: #2a2a38;
-  --text-primary: #e8e8f0;
-  --text-secondary: #a0a0b8;
-  --text-tertiary: #6a6a82;
-  --accent-primary: #00d4aa;
-  --accent-secondary: #00a88a;
-  --accent-glow: rgba(0, 212, 170, 0.15);
-  --error-color: #ff4d6a;
-  --warning-color: #ffb84d;
-  --success-color: #00d4aa;
+  /* === Surfaces (layered depth, cool near-black) === */
+  --bg-primary: #0a0b0f;
+  --bg-secondary: #101218;
+  --bg-tertiary: #171922;
+  --bg-elevated: #1c1f2a;
+  --bg-hover: #242835;
+  --bg-glass: rgba(20, 22, 30, 0.72);
+
+  /* === Borders === */
+  --border-color: rgba(255, 255, 255, 0.07);
+  --border-strong: rgba(255, 255, 255, 0.12);
+  --border-accent: rgba(45, 212, 191, 0.28);
+
+  /* === Text === */
+  --text-primary: #f4f5f7;
+  --text-secondary: #a8adba;
+  --text-tertiary: #6b7180;
+
+  /* === Accent (unified teal → emerald) === */
+  --accent-primary: #2dd4bf;
+  --accent-secondary: #14b8a6;
+  --accent-bright: #5eead4;
+  --accent-glow: rgba(45, 212, 191, 0.14);
+  --accent-soft: rgba(45, 212, 191, 0.08);
+  --accent-gradient: linear-gradient(135deg, #2dd4bf 0%, #0ea5a4 100%);
+
+  /* === Status === */
+  --error-color: #f87171;
+  --error-glow: rgba(248, 113, 113, 0.14);
+  --warning-color: #fbbf24;
+  --success-color: #34d399;
+
+  /* === Radius === */
+  --radius-xs: 6px;
+  --radius-sm: 9px;
+  --radius-md: 12px;
+  --radius-lg: 16px;
+  --radius-xl: 22px;
+
+  /* === Shadows (soft, layered elevation) === */
+  --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.28);
+  --shadow-md: 0 4px 16px rgba(0, 0, 0, 0.32);
+  --shadow-lg: 0 12px 40px rgba(0, 0, 0, 0.44);
+  --shadow-glow: 0 0 0 1px var(--accent-soft), 0 8px 28px rgba(45, 212, 191, 0.16);
+
+  /* === Motion === */
+  --ease-spring: cubic-bezier(0.34, 1.56, 0.64, 1);
+  --ease-smooth: cubic-bezier(0.4, 0, 0.2, 1);
+  --ease-out: cubic-bezier(0.22, 1, 0.36, 1);
 }
 
 * {
@@ -28,6 +63,7 @@ body {
   overflow: hidden;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
+  letter-spacing: -0.01em;
 }
 
 #root {
@@ -35,71 +71,67 @@ body {
   height: 100vh;
 }
 
-/* 滚动条样式 */
+/* Ambient background glow for depth */
+body::before {
+  content: '';
+  position: fixed;
+  top: -20%;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 900px;
+  height: 600px;
+  background: radial-gradient(ellipse at center, rgba(45, 212, 191, 0.06) 0%, transparent 70%);
+  pointer-events: none;
+  z-index: 0;
+}
+
+/* Scrollbar */
 ::-webkit-scrollbar {
-  width: 8px;
-  height: 8px;
+  width: 10px;
+  height: 10px;
 }
 
 ::-webkit-scrollbar-track {
-  background: var(--bg-secondary);
+  background: transparent;
 }
 
 ::-webkit-scrollbar-thumb {
-  background: var(--border-color);
-  border-radius: 4px;
+  background: rgba(255, 255, 255, 0.08);
+  border-radius: 6px;
+  border: 2px solid transparent;
+  background-clip: padding-box;
 }
 
 ::-webkit-scrollbar-thumb:hover {
-  background: var(--text-tertiary);
+  background: rgba(255, 255, 255, 0.16);
+  background-clip: padding-box;
 }
 
-/* 动画 */
 @keyframes fadeIn {
-  from {
-    opacity: 0;
-    transform: translateY(10px);
-  }
-  to {
-    opacity: 1;
-    transform: translateY(0);
-  }
+  from { opacity: 0; transform: translateY(10px); }
+  to { opacity: 1; transform: translateY(0); }
 }
 
 @keyframes slideIn {
-  from {
-    transform: translateX(-100%);
-  }
-  to {
-    transform: translateX(0);
-  }
+  from { transform: translateX(-100%); }
+  to { transform: translateX(0); }
 }
 
 @keyframes pulse {
-  0%, 100% {
-    opacity: 1;
-  }
-  50% {
-    opacity: 0.5;
-  }
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.5; }
 }
 
 @keyframes glow {
-  0%, 100% {
-    box-shadow: 0 0 20px var(--accent-glow);
-  }
-  50% {
-    box-shadow: 0 0 30px var(--accent-glow), 0 0 40px var(--accent-glow);
-  }
+  0%, 100% { box-shadow: 0 0 20px var(--accent-glow); }
+  50% { box-shadow: 0 0 30px var(--accent-glow), 0 0 40px var(--accent-glow); }
 }
 
-/* 选中文本样式 */
 ::selection {
   background: var(--accent-primary);
   color: var(--bg-primary);
 }
 
-/* 输入框样式 */
 input, textarea {
   font-family: inherit;
   color: inherit;
@@ -110,9 +142,7 @@ button {
   cursor: pointer;
 }
 
-/* 禁用选择 */
 .no-select {
   user-select: none;
   -webkit-user-select: none;
 }
-

@@ -28,9 +28,11 @@ yarn-error.log*
 
 # 项目特定
 backend/workspaces/
+backend/data/
 backend/config.json
 backend/*.log
 backend/.temp_code/
+backend/uploads-tmp/
 
 # 前端构建产物
 frontend/dist/
@@ -53,3 +55,6 @@ logs/
 # 操作系统
 Thumbs.db
 .DS_Store
+
+# 与本项目无关的本地参考目录（勿提交）
+src claude/

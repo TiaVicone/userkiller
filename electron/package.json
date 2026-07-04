@@ -4,7 +4,8 @@
   "description": "AI自动化办公软件",
   "main": "main.js",
   "scripts": {
-    "start": "electron .",
+    "dev": "NODE_ENV=development electron .",
+    "start": "NODE_ENV=production electron .",
     "build": "electron-builder"
   },
   "keywords": ["office", "automation", "ai"],
@@ -25,7 +26,11 @@
     "files": [
       "main.js",
       "preload.js",
-      "../frontend/dist/**/*"
+      "../frontend/dist/**/*",
+      "../backend/dist/**/*",
+      "../backend/package.json",
+      "../backend/package-lock.json",
+      "../backend/node_modules/**/*"
     ],
     "mac": {
       "category": "public.app-category.productivity",

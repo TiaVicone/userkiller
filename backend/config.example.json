@@ -1,0 +1,15 @@
+{
+  "apiKey": "<your-deepseek-api-key>",
+  "baseUrl": "https://api.deepseek.com",
+  "model": "deepseek-chat",
+  "maxTurns": 6,
+  "mcpServers": [
+    {
+      "id": "filesystem",
+      "command": "node",
+      "args": ["./node_modules/@modelcontextprotocol/server-filesystem/dist/index.js", ".."],
+      "cwd": "backend",
+      "description": "默认文件系统 MCP 服务，直接使用本地已安装 server-filesystem 并作用于项目工作区根目录"
+    }
+  ]
+}

@@ -26,15 +26,15 @@
 }
 
 .template-modal-content {
-  background: var(--bg-secondary);
-  border: 1px solid var(--border-color);
-  border-radius: 16px;
+  background: var(--bg-elevated);
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-xl);
   width: 750px;
   max-width: 90vw;
   height: 700px;
   max-height: 85vh;
-  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.5);
-  animation: slideUp 0.3s ease;
+  box-shadow: var(--shadow-lg);
+  animation: slideUp 0.3s var(--ease-spring);
   overflow: hidden;
   display: flex;
   flex-direction: column;
@@ -141,12 +141,12 @@
 }
 
 .pin-btn:hover {
-  background: rgba(0, 212, 170, 0.15);
-  color: var(--accent-primary);
+  background: var(--accent-soft);
+  color: var(--accent-bright);
 }
 
 .unpin-btn:hover {
-  background: rgba(255, 180, 77, 0.15);
+  background: rgba(251, 191, 36, 0.15);
   color: var(--warning-color);
 }
 
@@ -460,7 +460,7 @@
 }
 
 .template-icon {
-  color: #ffd700;
+  color: var(--accent-primary);
   flex-shrink: 0;
 }
 
@@ -502,8 +502,8 @@
 }
 
 .badge-quality {
-  background: rgba(0, 212, 170, 0.2);
-  color: var(--accent-primary);
+  background: var(--accent-glow);
+  color: var(--accent-bright);
 }
 
 .template-desc {
@@ -581,15 +581,14 @@
 }
 
 .btn-primary {
-  background: var(--accent-primary);
+  background: var(--accent-gradient);
   color: var(--bg-primary);
   flex: 1;
 }
 
 .btn-primary:hover {
-  background: var(--accent-secondary);
   transform: translateY(-1px);
-  box-shadow: 0 4px 12px var(--accent-glow);
+  box-shadow: 0 4px 14px rgba(45, 212, 191, 0.3);
 }
 
 .btn-secondary {
@@ -616,17 +615,17 @@
 }
 
 .btn-copy:hover {
-  background: rgba(0, 212, 170, 0.15);
-  color: var(--accent-primary);
+  background: var(--accent-soft);
+  color: var(--accent-bright);
 }
 
 .btn-export:hover {
-  background: rgba(77, 171, 255, 0.15);
-  color: #4dabff;
+  background: rgba(96, 165, 250, 0.15);
+  color: #60a5fa;
 }
 
 .btn-delete:hover {
-  background: rgba(255, 77, 106, 0.15);
+  background: var(--error-glow);
   color: var(--error-color);
 }
 

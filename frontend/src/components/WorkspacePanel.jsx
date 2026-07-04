@@ -1,6 +1,6 @@
 import React, { useRef } from 'react'
 import { Upload, Download, Trash2, FileText, FolderOpen, ExternalLink, FileSpreadsheet, FileImage, File } from 'lucide-react'
-import { api } from '../utils/api'
+import api from '../utils/api'
 import './WorkspacePanel.css'
 
 function WorkspacePanel({ 
@@ -10,7 +10,9 @@ function WorkspacePanel({
   onToggle, 
   onUploadFile, 
   onDeleteFile,
-  currentSession 
+  currentSession,
+  focusedFile,
+  onFocusFile,
 }) {
   const fileInputRef = useRef(null)
   const [isDragging, setIsDragging] = React.useState(false)
@@ -67,20 +69,18 @@ function WorkspacePanel({
   const handleOpenFile = async (filename, isOutput = false) => {
     try {
       const fileType = isOutput ? 'output' : 'workspace'
-      const result = await api.openFile(currentSession.id, `${fileType}/${filename}`)
+      const result = await api.session.openFile(currentSession.id, `${fileType}/${filename}`)
       
       if (result.success && result.file_path) {
         // 如果是 Electron 环境，使用 Electron API 打开文件
         if (window.electronAPI && window.electronAPI.openFile) {
           await window.electronAPI.openFile(result.file_path)
-        } else {
-          // 浏览器环境，提示用户文件路径
-          alert(`文件路径：\n${result.file_path}\n\n请手动打开此文件`)
         }
+        // 浏览器环境下静默失败，不显示提示
       }
     } catch (error) {
       console.error('打开文件失败:', error)
-      alert('打开文件失败: ' + error.message)
+      // 只在控制台记录错误，不弹出提示
     }
   }
 
@@ -167,6 +167,8 @@ function WorkspacePanel({
     )
   }
 
+  const visibleOutputFiles = outputFiles.filter(file => !['task-plan.md', 'document-structure-summary.json'].includes(file.name))
+
   return (
     <div className={`workspace-panel ${isOpen ? 'open' : 'closed'}`}>
       <div className="panel-header">
@@ -230,14 +232,15 @@ function WorkspacePanel({
                 {workspaceFiles.map((file, index) => (
                 <div 
                   key={index} 
-                  className="file-item"
-                  onDoubleClick={() => handleOpenFile(file.filename, false)}
-                  title="双击打开文件"
+                  className={`file-item ${focusedFile === file.name ? 'focused' : ''}`}
+                  onClick={() => onFocusFile && onFocusFile(file.name)}
+                  onDoubleClick={() => handleOpenFile(file.name, false)}
+                  title="单击聚焦文件，双击打开文件"
                 >
-                  <div className="file-icon-wrapper">{getFileIcon(file.filename)}</div>
+                  <div className="file-icon-wrapper">{getFileIcon(file.name)}</div>
                   <div className="file-info">
-                    <div className="file-name" title={file.filename}>
-                      {file.filename}
+                    <div className="file-name" title={file.name}>
+                      {file.name}
                     </div>
                     <div className="file-meta">
                       {formatFileSize(file.size)}
@@ -248,7 +251,7 @@ function WorkspacePanel({
                       className="action-btn"
                       onClick={(e) => {
                         e.stopPropagation()
-                        handleDownloadFile(file.filename, false)
+                        handleDownloadFile(file.name, false)
                       }}
                       title="下载文件"
                     >
@@ -259,7 +262,7 @@ function WorkspacePanel({
                       onClick={(e) => {
                         e.stopPropagation()
                         if (confirm('确定要删除这个文件吗？')) {
-                          onDeleteFile(file.filepath, false)
+                          onDeleteFile(`workspace/${file.name}`, false)
                         }
                       }}
                       title="删除文件"
@@ -279,27 +282,27 @@ function WorkspacePanel({
           <div className="area-header">
             <Download size={14} />
             <span>输出文件</span>
-            <span className="file-count">{outputFiles.length}</span>
+            <span className="file-count">{visibleOutputFiles.length}</span>
           </div>
 
           <div className="file-list">
-            {outputFiles.length === 0 ? (
+            {visibleOutputFiles.length === 0 ? (
               <div className="empty-files">
                 <p>暂无输出文件</p>
                 <p className="hint">执行任务后会生成输出文件</p>
               </div>
             ) : (
-              outputFiles.map((file, index) => (
+              visibleOutputFiles.map((file, index) => (
                 <div 
                   key={index} 
                   className="file-item"
-                  onDoubleClick={() => handleOpenFile(file.filename, true)}
+                  onDoubleClick={() => handleOpenFile(file.name, true)}
                   title="双击打开文件"
                 >
-                  <div className="file-icon-wrapper">{getFileIcon(file.filename)}</div>
+                  <div className="file-icon-wrapper">{getFileIcon(file.name)}</div>
                   <div className="file-info">
-                    <div className="file-name" title={file.filename}>
-                      {file.filename}
+                    <div className="file-name" title={file.name}>
+                      {file.name}
                     </div>
                     <div className="file-meta">
                       {formatFileSize(file.size)}
@@ -310,7 +313,7 @@ function WorkspacePanel({
                       className="action-btn"
                       onClick={(e) => {
                         e.stopPropagation()
-                        handleDownloadFile(file.filename, true)
+                        handleDownloadFile(file.name, true)
                       }}
                       title="下载文件"
                     >
@@ -321,7 +324,7 @@ function WorkspacePanel({
                       onClick={(e) => {
                         e.stopPropagation()
                         if (confirm('确定要删除这个文件吗？')) {
-                          onDeleteFile(file.filepath, true)
+                          onDeleteFile(`output/${file.name}`, true)
                         }
                       }}
                       title="删除文件"

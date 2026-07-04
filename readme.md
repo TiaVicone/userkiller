@@ -1,182 +1,159 @@
 # AI 自动化办公助手
 
-一个基于 AI 的智能办公自动化工具，通过自然语言描述需求，自动生成并执行办公自动化脚本。
+一个面向办公场景的 AI 自动化工具。用户通过自然语言提出需求，系统在会话工作区内观察上传文件、理解表格/文档结构、调用模型决策工具链，并将生成结果输出到独立的 `output` 目录。
 
-## ✨ 主要特性
+## 主要特性
 
-- 🤖 **智能需求理解**：使用 AI 理解用户的办公需求
-- 📝 **自动代码生成**：根据需求自动生成 Python 脚本
-- 🔄 **工作流引擎**：PM → Planner → Coder → Reviewer 完整工作流
-- 📁 **文件管理**：支持多种文件格式（Excel、Word、PDF 等）
-- 🎯 **模板系统**：保存成功任务为模板，快速复用
-- 💬 **会话管理**：多会话并发执行，互不干扰
-- 🖥️ **跨平台**：支持 Electron 桌面应用和浏览器访问
+- 智能需求理解：基于 DeepSeek/OpenAI 兼容接口理解用户目标
+- 文件工作区：按会话隔离上传文件、输出文件和执行状态
+- 表格与文档处理：支持 Excel/CSV 预览汇总、Word 结构读取与模板回填等能力
+- Agent 工具循环：观察文件、读取内容、生成结果、校验输出、必要时请求澄清
+- 模板系统：可将成功任务保存为模板并复用
+- 桌面与浏览器访问：支持 Vite Web 前端和 Electron 桌面壳
 
-## 🚀 快速开始
+## 快速开始
 
-### 环境要求·  
+### 环境要求
 
-- Python 3.8-3.12
-- Node.js 16+
-- npm 或 yarn
+- Node.js 18+
+- npm
 
-### 安装步骤
-
-1. **克隆项目**
-
-```bash
-git clone <your-repo-url>
-cd userKiller
-```
-
-2. **配置 API 密钥**
-
-复制配置文件并填入你的 API 密钥：
+### 配置 API 密钥
 
 ```bash
 cd backend
-cp config.example.md config.json
+cp config.example.json config.json
 ```
 
-编辑 `backend/config.json`，填入你的 DeepSeek API 密钥。
+编辑 `backend/config.json`，填入 DeepSeek API Key。也可以使用环境变量 `DEEPSEEK_API_KEY`、`DEEPSEEK_BASE_URL`、`DEEPSEEK_MODEL`、`MAX_AGENT_TURNS` 覆盖配置。
 
-3. **安装后端依赖**
+### 安装依赖
 
 ```bash
-cd backend
-python3 -m venv venv
-source venv/bin/activate  # Windows: venv\Scripts\activate
-pip install -r requirements.txt
+npm --prefix backend install
+npm --prefix frontend install
+npm --prefix electron install
 ```
 
-4. **安装前端依赖**
+### 启动开发环境
 
-```bash
-cd ../frontend
-npm install
-```
+macOS/Linux：
 
-5. **安装 Electron 依赖**（可选）
-
-```bash
-cd ../electron
-npm install
-```
-
-### 启动应用
-
-#### 开发模式
-
-打开 3 个终端窗口：
-
-**终端 1 - 后端：**
-```bash
-cd backend
-source venv/bin/activate
-python app.py
-```
-
-**终端 2 - 前端：**
-```bash
-cd frontend
-npm run dev
-```
-
-**终端 3 - Electron：**
-```bash
-cd electron
-NODE_ENV=development npm start
-```
-
-或者直接在浏览器访问：http://localhost:3000
-
-#### 使用启动脚本
-
-macOS/Linux:
 ```bash
 chmod +x start.sh
 ./start.sh
 ```
 
-Windows:
+如需同时启动 Electron：
+
 ```bash
+START_ELECTRON=1 ./start.sh
+```
+
+Windows：
+
+```bat
 start.bat
 ```
 
-## 📖 文档
+也可以分别启动：
 
-- [启动步骤详解](./启动步骤.md)
-- [API 接口文档](./API接口文档.md)
-- [配置说明](./backend/config.example.md)
-
-## 🎯 使用示例
-
-1. **创建新会话**：点击左侧边栏的"+"按钮
-2. **上传文件**：拖拽或点击上传按钮，上传需要处理的文件
-3. **描述需求**：用自然语言描述你的办公需求，例如：
-   - "将员工信息表按部门分类统计"
-   - "批量生成工资条"
-   - "合并多个 Excel 文件"
-4. **等待执行**：AI 会自动分析需求、生成代码并执行
-5. **下载结果**：从输出区下载处理后的文件
-
-## 🏗️ 项目结构
-
+```bash
+npm --prefix backend run dev
+npm --prefix frontend run dev
 ```
-userKiller/
-├── backend/              # 后端服务
-│   ├── modules/         # AI 模块（PM、Planner、Coder、Reviewer）
-│   ├── workspaces/      # 会话工作区
-│   ├── app.py          # Flask 应用入口
-│   ├── workflow_engine.py  # 工作流引擎
-│   └── requirements.txt    # Python 依赖
-├── frontend/            # 前端应用
+
+浏览器访问：`http://localhost:3000`。后端默认端口：`5001`。
+
+### 生产构建
+
+使用一键构建脚本：
+
+macOS/Linux：
+
+```bash
+chmod +x build-production.sh
+./build-production.sh
+```
+
+Windows：
+
+```bat
+build-production.bat
+```
+
+构建完成后，安装包位于 `electron/dist/`。
+
+如需测试生产模式（不打包）：
+
+```bash
+# 先构建
+npm --prefix backend run build
+npm --prefix frontend run build
+
+# 启动生产模式
+cd electron
+npm start
+```
+
+详细说明见 `启动步骤.md`。
+
+## 项目结构
+
+```text
+userkiller/
+├── backend/                 # Node.js + TypeScript 后端
 │   ├── src/
-│   │   ├── components/  # React 组件
-│   │   └── utils/       # 工具函数
+│   │   ├── index.ts         # Express API 入口
+│   │   ├── fsUtils.ts       # 文件、配置与路径工具
+│   │   ├── types.ts         # 会话、任务、模板、技能等类型
+│   │   └── services/        # Agent、模型、MCP、会话、模板、表格/文档服务
+│   ├── config.example.json  # 配置示例
+│   ├── package.json
+│   └── tsconfig.json
+├── frontend/                # React + Vite 前端
+│   ├── src/components/      # 会话侧栏、聊天区、工作区、模板库等组件
+│   ├── src/utils/api.js     # 前端 API 封装
 │   └── package.json
-├── electron/            # Electron 桌面应用
+├── electron/                # Electron 桌面应用入口
 │   ├── main.js
-│   └── preload.js
-└── README.md
+│   ├── preload.js
+│   └── package.json
+├── start.sh                 # macOS/Linux 一键启动脚本
+└── 启动步骤.md              # 更详细的启动说明
 ```
 
-## 🔧 技术栈
+## 技术栈
 
 ### 后端
-- Python 3.8+
-- Flask
-- OpenAI API (DeepSeek)
-- pandas, openpyxl, python-docx
+
+- Node.js / TypeScript
+- Express
+- OpenAI SDK（连接 DeepSeek 兼容接口）
+- MCP filesystem server
+- xlsx、mammoth、jszip、fast-xml-parser
 
 ### 前端
+
 - React 18
 - Vite
 - Axios
 - lucide-react
-- framer-motion
 
 ### 桌面应用
+
 - Electron
 
-## 🤝 贡献
+## 使用流程
 
-欢迎提交 Issue 和 Pull Request！
+1. 创建或选择会话。
+2. 上传需要处理的 Excel、CSV、Word、文本等文件。
+3. 用自然语言描述任务，例如“汇总各部门人数并生成 Excel 结果”。
+4. 系统执行 Agent 工具循环，必要时向用户澄清。
+5. 在输出区下载或打开生成文件。
 
-## 📄 许可证
+## 商用注意事项
 
-MIT License
-
-## 🙏 致谢
-
-- [DeepSeek](https://www.deepseek.com/) - AI 模型支持
-- [OpenAI](https://openai.com/) - API 接口
-
-## 📞 联系方式
-
-如有问题或建议，请提交 Issue。
-
----
-
-**注意**：使用前请确保已正确配置 API 密钥，并遵守相关服务的使用条款。
-# userkiller
+- 不要提交 `backend/config.json`、`backend/data/`、`node_modules/`、构建产物和本地系统文件。
+- 生产环境应使用构建产物、进程守护、日志采集和密钥管理，而不是开发模式启动命令。
+- 上传文件和模型请求可能包含敏感数据，商用前需补齐鉴权、审计、数据保留策略和用户授权提示。

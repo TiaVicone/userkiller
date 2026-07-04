@@ -1,8 +1,7 @@
 import React, { useState, useEffect } from 'react'
-import { 
-  X, Search, Star, Clock, FileText, Pin, PinOff, Eye, Edit2, Trash2, Plus,
-  Download, Copy, Tag, TrendingUp, Filter, SortAsc, Calendar,
-  CheckCircle, AlertCircle, Sparkles, Zap, BookOpen
+import {
+  X, Search, Star, Clock, FileText, Pin, PinOff, Eye, Trash2,
+  Tag, TrendingUp, Filter, SortAsc, Sparkles, Zap, BookOpen,
 } from 'lucide-react'
 import './TemplateLibrary.css'
 
