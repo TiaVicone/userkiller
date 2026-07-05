@@ -1,14 +1,30 @@
-import { useState, useEffect, useRef } from 'react'
+import { useState, useEffect, useMemo, useRef } from 'react'
 import TitleBar from './components/TitleBar'
-import SessionSidebar from './components/SessionSidebar'
+import WorkspaceSidebar from './components/WorkspaceSidebar'
 import WorkspacePanel from './components/WorkspacePanel'
-import ChatArea from './components/ChatArea'
+import WorkHeader from './components/WorkHeader'
+import Observatory from './components/Observatory'
+import ChatView from './components/ChatView'
+import ConvoFinder from './components/ConvoFinder'
 import TemplateLibrary from './components/TemplateLibrary'
 import ToastContainer from './components/ToastContainer'
 import api, { subscribeToSessionStatus } from './utils/api'
 import { showToast } from './utils/toast'
+import {
+  ensureClassified,
+  migrateExistingSessions,
+  removeSession,
+  setSnippet,
+  getTheme,
+  setTheme,
+  type ThemeName,
+} from './utils/workspaceStore'
+import { deriveObservatory } from './utils/observatoryModel'
 import type { Session, ChatMessage, FileInfo, ActivityStep, ExecutionStatusResponse } from './types'
 import './App.css'
+
+// 首帧前应用持久化主题，避免无主题变量的闪烁
+document.body.dataset.theme = getTheme()
 
 interface SessionDataCache {
   workspaceFiles: FileInfo[]
@@ -27,11 +43,15 @@ function App() {
   const [outputFiles, setOutputFiles] = useState<FileInfo[]>([])
   const [messages, setMessages] = useState<ChatMessage[]>([])
   const sessionDataCache = useRef<Map<string, SessionDataCache>>(new Map())
-  const [isSessionSidebarOpen, setIsSessionSidebarOpen] = useState(true)
   const [focusedFile, setFocusedFile] = useState('')
   const [showTemplateLibrary, setShowTemplateLibrary] = useState(false)
   const [templateMode, setTemplateMode] = useState<'modal' | 'sidebar'>('modal')
   const sseCleanupRef = useRef<Record<string, () => void>>({})
+  // ── 新增 UI 状态（仅展示层，不触碰执行流） ──
+  const [mode, setMode] = useState<'obs' | 'chat'>('obs')
+  const [filesOpen, setFilesOpen] = useState(false)
+  const [finderOpen, setFinderOpen] = useState(false)
+  const [theme, setThemeState] = useState<ThemeName>(getTheme())
 
   useEffect(() => {
     loadSessions()
@@ -85,6 +105,47 @@ function App() {
     window.addEventListener('keydown', handleKeyPress)
     return () => window.removeEventListener('keydown', handleKeyPress)
   }, [templateMode])
+
+  // ⌘K / Ctrl+K 开关对话查找器，Esc 关闭
+  useEffect(() => {
+    const handleFinderKey = (e: KeyboardEvent) => {
+      if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'k') {
+        e.preventDefault()
+        setFinderOpen(prev => !prev)
+      }
+      if (e.key === 'Escape') {
+        setFinderOpen(false)
+      }
+    }
+    window.addEventListener('keydown', handleFinderKey)
+    return () => window.removeEventListener('keydown', handleFinderKey)
+  }, [])
+
+  // 首次启动：对存量会话做一次批量归类（内部有防重入标记）
+  useEffect(() => {
+    if (sessions.length > 0) migrateExistingSessions(sessions)
+  }, [sessions])
+
+  // 新会话发送首条消息后自动归类（已归属的会话直接跳过），并缓存摘要供 ⌘K 查找器搜索
+  useEffect(() => {
+    if (!currentSession) return
+    const firstUser = messages.find(m => m.role === 'user')
+    if (!firstUser?.content) return
+    setSnippet(currentSession.id, firstUser.content)
+    ensureClassified(currentSession, workspaceFiles, firstUser.content)
+  }, [currentSession, messages, workspaceFiles])
+
+  // 观测台 ⇄ 对话切换：文件面板联动（切观测台自动收起、切对话自动展开；手动操作在下次切换前优先）
+  const handleSetMode = (next: 'obs' | 'chat') => {
+    setMode(next)
+    setFilesOpen(next === 'chat')
+  }
+
+  const handleToggleTheme = () => {
+    const next: ThemeName = theme === 'dark' ? 'light' : 'dark'
+    setTheme(next)
+    setThemeState(next)
+  }
 
   const loadSessions = async () => {
     try {
@@ -153,6 +214,7 @@ function App() {
       setMessages([])
       setWorkspaceFiles([])
       setOutputFiles([])
+      handleSetMode('chat')
     } catch (error: any) {
       console.error('创建会话失败:', error)
       showToast('error', '创建会话失败: ' + (error?.message || '未知错误'))
@@ -163,6 +225,7 @@ function App() {
     if (!window.confirm('确定删除该会话吗？此操作不可撤销。')) return
     try {
       await api.session.delete(sessionId)
+      removeSession(sessionId)
       setSessions(prev => prev.filter(s => s.id !== sessionId))
       if (currentSession?.id === sessionId) {
         setCurrentSession(null)
@@ -180,6 +243,7 @@ function App() {
   const handleSelectSession = (session: Session) => {
     setCurrentSession(session)
     setFocusedFile('')
+    handleSetMode('chat')
   }
 
   const handleUploadFile = async (file: File) => {
@@ -205,7 +269,6 @@ function App() {
   }
 
   const handleSendMessage = async (userInput: string, options: SendMessageOptions = {}) => {
-    setIsSessionSidebarOpen(false)
     if (!currentSession) {
       try {
         const data = await api.session.create('')
@@ -657,46 +720,113 @@ function App() {
     return parts.join('\n')
   }
 
+  // ── 观测台数据派生：现有 SSE → buildActivitySteps 流的新展示层（无任何演示数据） ──
+  const loadingMessage = messages.find(m => m.loading)
+  const lastFinalMessage = useMemo(
+    () =>
+      [...messages]
+        .reverse()
+        .find(m => m.role === 'assistant' && !m.loading && ((m.workflow_steps?.length || 0) > 0 || (m.logs?.length || 0) > 0)),
+    [messages]
+  )
+
+  const obsSteps: ActivityStep[] = useMemo(() => {
+    if (loadingMessage) return loadingMessage.activitySteps || []
+    if (lastFinalMessage) {
+      // 回放：用同一套 buildActivitySteps 从最终消息的真实 workflow/logs 推导终态
+      return buildActivitySteps({
+        workflow_steps: (lastFinalMessage.workflow_steps || []) as NonNullable<ExecutionStatusResponse['progress']>['workflow_steps'],
+        logs: (lastFinalMessage.logs || []) as NonNullable<ExecutionStatusResponse['progress']>['logs'],
+        message: '',
+      })
+    }
+    return []
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [loadingMessage, loadingMessage?.activitySteps, lastFinalMessage])
+
+  const obsCompleted = !isExecuting && !!lastFinalMessage?.success
+  const obsStarted = isExecuting || obsSteps.length > 0
+  const deliveredCount = lastFinalMessage?.generated_files?.length || 0
+  const executionKey = loadingMessage?.timestamp || lastFinalMessage?.timestamp || currentSession?.id || 'none'
+  const obsModel = useMemo(
+    () => deriveObservatory({ steps: obsSteps, executing: isExecuting, completed: obsCompleted, started: obsStarted }),
+    [obsSteps, isExecuting, obsCompleted, obsStarted]
+  )
+
   return (
     <div className="app">
-      <TitleBar 
-        currentSession={currentSession}
-        onOpenTemplates={() => setShowTemplateLibrary(true)}
-        templateMode={templateMode}
-      />
+      <TitleBar currentSession={currentSession} />
       <div className="app-content">
-        <SessionSidebar
+        <WorkspaceSidebar
           sessions={sessions}
           currentSession={currentSession}
-          isOpen={isSessionSidebarOpen}
-          onToggle={() => setIsSessionSidebarOpen(!isSessionSidebarOpen)}
+          isExecuting={isExecuting}
           onSelectSession={handleSelectSession}
           onDeleteSession={handleDeleteSession}
           onCreateSession={handleCreateSession}
+          onOpenFinder={() => setFinderOpen(true)}
+          onOpenTemplates={() => setShowTemplateLibrary(prev => (templateMode === 'modal' ? !prev : true))}
+          templatesOpen={showTemplateLibrary}
+          theme={theme}
+          onToggleTheme={handleToggleTheme}
         />
         <WorkspacePanel
           workspaceFiles={workspaceFiles}
           outputFiles={outputFiles}
-          isOpen={true}
-          onToggle={() => {}}
+          isOpen={filesOpen}
+          onToggle={() => setFilesOpen(prev => !prev)}
           onUploadFile={handleUploadFile}
           onDeleteFile={handleDeleteFile}
           currentSession={currentSession}
           focusedFile={focusedFile}
           onFocusFile={setFocusedFile}
         />
-        <ChatArea
-          messages={messages}
-          currentSession={currentSession}
-          onSendMessage={handleSendMessage}
-          isExecuting={isExecuting}
-          onSaveAsTemplate={handleSaveAsTemplate}
-          onStopExecution={handleStopExecution}
-          focusedFile={focusedFile}
-          onRevertToMessage={handleRevertToMessage}
-          onOpenGeneratedFile={handleOpenGeneratedFile}
-          onDownloadGeneratedFile={handleDownloadGeneratedFile}
-        />
+        <main className="app-main">
+          <WorkHeader
+            currentSession={currentSession}
+            mode={mode}
+            onSetMode={handleSetMode}
+            isExecuting={isExecuting}
+            onStop={handleStopExecution}
+          />
+          {mode === 'obs' ? (
+            <Observatory
+              steps={obsSteps}
+              isExecuting={isExecuting}
+              completed={obsCompleted}
+              started={obsStarted}
+              deliveredCount={deliveredCount}
+              executionKey={executionKey}
+              currentSession={currentSession}
+              onSendMessage={handleSendMessage}
+              focusedFile={focusedFile}
+            />
+          ) : (
+            <ChatView
+              messages={messages}
+              currentSession={currentSession}
+              onSendMessage={handleSendMessage}
+              isExecuting={isExecuting}
+              onSaveAsTemplate={handleSaveAsTemplate}
+              focusedFile={focusedFile}
+              onClearFocus={() => setFocusedFile('')}
+              onRevertToMessage={handleRevertToMessage}
+              onOpenGeneratedFile={handleOpenGeneratedFile}
+              onDownloadGeneratedFile={handleDownloadGeneratedFile}
+              onGoObservatory={() => handleSetMode('obs')}
+              progressPct={obsModel.pct}
+            />
+          )}
+        </main>
+        {finderOpen && (
+          <ConvoFinder
+            sessions={sessions}
+            currentSession={currentSession}
+            onClose={() => setFinderOpen(false)}
+            onOpenSession={handleSelectSession}
+            onCreateSession={handleCreateSession}
+          />
+        )}
         {templateMode === 'sidebar' && showTemplateLibrary && (
           <TemplateLibrary
             mode="sidebar"

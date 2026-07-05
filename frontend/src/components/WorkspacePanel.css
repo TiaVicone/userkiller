@@ -1,286 +1,369 @@
-.workspace-panel {
-  width: 300px;
-  background: var(--bg-secondary);
-  border-right: 1px solid var(--border-color);
+/* ─ 展开态 264px ─ */
+.wp-panel {
+  width: 264px;
+  flex-shrink: 0;
   display: flex;
   flex-direction: column;
-  transition: width 0.3s var(--ease-smooth);
+  background: var(--bg);
+  border-right: 1px solid var(--line);
+  min-height: 0;
 }
 
-.workspace-panel.closed {
-  width: 0;
-  border-right: none;
-}
-
-.panel-header {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  padding: 16px 18px;
-  border-bottom: 1px solid var(--border-color);
-}
-
-.panel-title {
-  font-size: 14px;
-  font-weight: 600;
-  color: var(--text-primary);
-  letter-spacing: -0.01em;
-}
-
-.panel-content {
-  flex: 1;
-  display: flex;
-  flex-direction: column;
-  overflow: hidden;
-}
-
-.no-session {
-  flex: 1;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  color: var(--text-tertiary);
-  gap: 16px;
-}
-
-.workspace-area, .output-area {
-  flex: 1;
-  display: flex;
-  flex-direction: column;
-  overflow: hidden;
-  border-bottom: 1px solid var(--border-color);
-}
-
-.output-area {
-  border-bottom: none;
-}
-
-.area-header {
+.wp-header {
+  height: 54px;
+  flex-shrink: 0;
   display: flex;
   align-items: center;
   gap: 8px;
-  padding: 13px 18px;
-  background: var(--bg-tertiary);
-  border-bottom: 1px solid var(--border-color);
-  font-size: 12px;
-  font-weight: 600;
-  color: var(--text-secondary);
-  text-transform: uppercase;
-  letter-spacing: 0.04em;
+  padding: 0 16px;
+  border-bottom: 1px solid var(--line);
 }
 
-.upload-btn {
+.wp-title {
+  font-size: 12.5px;
+  font-weight: 600;
+  color: var(--ink2);
+}
+
+.wp-total {
+  font-size: 10px;
+  color: var(--ink5);
+}
+
+.wp-collapse-btn {
   margin-left: auto;
-  width: 26px;
-  height: 26px;
-  border: none;
-  background: var(--bg-hover);
-  color: var(--text-secondary);
-  border-radius: var(--radius-xs);
-  display: flex;
+  width: 24px;
+  height: 24px;
+  border-radius: 7px;
+  border: 1px solid var(--line);
+  background: transparent;
+  display: inline-flex;
   align-items: center;
   justify-content: center;
-  transition: all 0.2s var(--ease-smooth);
+  color: var(--ink4);
+  transition: border-color 0.2s, color 0.2s;
 }
 
-.upload-btn:hover {
-  background: var(--accent-gradient);
-  color: var(--bg-primary);
-  transform: scale(1.06);
+.wp-collapse-btn:hover {
+  border-color: var(--gold-line);
+  color: var(--gold-text);
 }
 
-.file-section {
-  flex: 1;
-  display: flex;
-  flex-direction: column;
-  overflow: hidden;
-}
-
-.section-header {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  padding: 12px 18px;
-  font-size: 12px;
-  color: var(--text-tertiary);
-  background: var(--bg-secondary);
-}
-
-.file-count {
-  margin-left: auto;
-  padding: 2px 9px;
-  background: var(--bg-tertiary);
-  border: 1px solid var(--border-color);
-  border-radius: 999px;
-  font-size: 11px;
-  font-weight: 600;
-}
-
-.file-list {
+.wp-body {
   flex: 1;
   overflow-y: auto;
-  padding: 8px 10px;
-  position: relative;
-  transition: all 0.2s;
+  padding: 14px 12px 20px;
+  min-height: 0;
 }
 
-.file-list.dragging {
-  background: var(--accent-soft);
-  border: 2px dashed var(--border-accent);
-  border-radius: var(--radius-md);
-}
-
-.drag-overlay {
-  position: absolute;
-  inset: 0;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  background: rgba(45, 212, 191, 0.08);
-  backdrop-filter: blur(6px);
-  z-index: 10;
-  pointer-events: none;
-  animation: fadeIn 0.2s ease-out;
-}
-
-.drag-overlay svg {
-  color: var(--accent-primary);
-  margin-bottom: 12px;
-  animation: bounce 0.6s ease-in-out infinite;
-}
-
-.drag-overlay p {
-  color: var(--accent-bright);
-  font-size: 14px;
-  font-weight: 600;
-}
-
-@keyframes bounce {
-  0%, 100% { transform: translateY(0); }
-  50% { transform: translateY(-8px); }
-}
-
-.empty-files {
-  padding: 44px 20px;
+.wp-empty {
+  padding: 40px 12px;
   text-align: center;
-  color: var(--text-tertiary);
+  font-size: 12px;
+  color: var(--ink4);
 }
 
-.empty-files p {
-  margin-bottom: 8px;
-  font-size: 13px;
-}
-
-.empty-files .hint {
-  font-size: 11px;
-}
-
-.file-item {
+/* ─ dropzone ─ */
+.wp-dropzone {
+  border: 1.5px dashed var(--line2);
+  border-radius: 12px;
+  padding: 13px 12px;
   display: flex;
   align-items: center;
-  gap: 11px;
-  padding: 10px 11px;
-  margin-bottom: 5px;
-  background: var(--bg-tertiary);
-  border: 1px solid transparent;
-  border-radius: var(--radius-md);
-  transition: all 0.2s var(--ease-smooth);
-  animation: fadeIn 0.3s ease-out;
+  gap: 10px;
+  margin-bottom: 18px;
   cursor: pointer;
-  user-select: none;
+  transition: border-color 0.2s, background 0.2s;
 }
 
-.file-item:hover {
-  background: var(--bg-elevated);
-  border-color: var(--border-color);
-  transform: translateX(2px);
+.wp-dropzone:hover,
+.wp-dropzone.dragging {
+  border-color: var(--gold-line);
+  background: var(--gold-dim);
 }
 
-.file-item:active {
-  transform: scale(0.98);
-}
-
-.file-item.focused {
-  background: var(--accent-soft);
-  border: 1px solid var(--border-accent);
-}
-
-.file-item.focused .file-icon-wrapper {
-  background: var(--accent-soft);
-}
-
-.file-icon-wrapper {
-  display: flex;
+.wp-dropzone-icon {
+  width: 30px;
+  height: 30px;
+  border-radius: 9px;
+  background: var(--gold-dim);
+  color: var(--gold-text);
+  display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: 34px;
-  height: 34px;
-  border-radius: var(--radius-sm);
-  background: var(--bg-secondary);
   flex-shrink: 0;
-  transition: all 0.2s;
 }
 
-.file-item:hover .file-icon-wrapper {
-  background: var(--bg-primary);
+.wp-dropzone-title {
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--ink2);
 }
 
-.file-icon-excel { color: #34d399; }
-.file-icon-doc { color: #60a5fa; }
-.file-icon-image { color: #c084fc; }
-.file-icon-default { color: var(--text-tertiary); }
+.wp-dropzone-hint {
+  margin-top: 2px;
+  font-size: 9.5px;
+  color: var(--ink5);
+}
 
-.file-info {
+/* ─ 分区标题 ─ */
+.wp-section-head {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  margin-bottom: 8px;
+}
+
+.wp-section-title {
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.12em;
+  color: var(--ink3);
+}
+
+.wp-section-count {
+  font-size: 9.5px;
+  color: var(--ink5);
+}
+
+.wp-deliverable {
+  font-size: 10px;
+  color: var(--good);
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.wp-deliverable-dot {
+  width: 4px;
+  height: 4px;
+  border-radius: 999px;
+  background: var(--good);
+}
+
+.wp-input-list {
+  margin-bottom: 20px;
+}
+
+.wp-empty-files {
+  padding: 14px 10px 18px;
+  text-align: center;
+}
+
+.wp-empty-files p {
+  font-size: 11.5px;
+  color: var(--ink4);
+}
+
+.wp-empty-hint {
+  margin-top: 4px;
+  font-size: 10px !important;
+  color: var(--ink5) !important;
+}
+
+/* ─ 输入文件行 ─ */
+.wp-file {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 9px;
+  border: 1px solid var(--line);
+  background: var(--elev);
+  border-radius: 10px;
+  margin-bottom: 6px;
+  cursor: pointer;
+  transition: border-color 0.2s, background 0.2s;
+  position: relative;
+}
+
+.wp-file:hover {
+  border-color: var(--gold-line);
+}
+
+.wp-file.focused {
+  border-color: var(--gold-line);
+  background: var(--gold-dim);
+}
+
+.wp-file-tag {
+  width: 28px;
+  height: 28px;
+}
+
+.wp-file-info {
   flex: 1;
   min-width: 0;
 }
 
-.file-name {
-  font-size: 13px;
-  color: var(--text-primary);
+.wp-file-name {
+  font-size: 11.5px;
+  color: var(--ink);
+  font-weight: 500;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-  margin-bottom: 2px;
 }
 
-.file-meta {
-  font-size: 11px;
-  color: var(--text-tertiary);
+.wp-file-meta {
+  margin-top: 1px;
+  font-size: 9px;
+  color: var(--ink5);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
-.file-actions {
-  display: flex;
-  gap: 4px;
-  opacity: 0;
-  transition: opacity 0.2s;
+.wp-focus-chip {
+  font-size: 9px;
+  padding: 2px 7px;
+  border-radius: 999px;
+  background: var(--gold-dim);
+  color: var(--gold-text);
+  flex-shrink: 0;
 }
 
-.file-item:hover .file-actions {
-  opacity: 1;
+.wp-file-actions {
+  display: none;
+  gap: 3px;
+  flex-shrink: 0;
 }
 
-.action-btn {
-  width: 26px;
-  height: 26px;
+.wp-file:hover .wp-file-actions {
+  display: inline-flex;
+}
+
+.wp-file:hover .wp-focus-chip {
+  display: none;
+}
+
+.wp-icon-btn {
+  width: 22px;
+  height: 22px;
+  border-radius: 6px;
   border: none;
-  background: var(--bg-secondary);
-  color: var(--text-secondary);
-  border-radius: var(--radius-xs);
-  display: flex;
+  background: transparent;
+  color: var(--ink4);
+  display: inline-flex;
   align-items: center;
   justify-content: center;
-  transition: all 0.2s;
+  transition: color 0.2s, background 0.2s;
 }
 
-.action-btn:hover {
-  background: var(--accent-gradient);
-  color: var(--bg-primary);
+.wp-icon-btn:hover {
+  color: var(--gold-text);
+  background: var(--gold-dim);
 }
 
-.action-btn.delete:hover {
-  background: var(--error-color);
-  color: white;
+.wp-icon-btn.danger:hover {
+  color: var(--bad);
+  background: var(--bad-dim);
+}
+
+/* ─ 输出文件卡 ─ */
+.wp-output {
+  padding: 9px;
+  border: 1px solid var(--line);
+  background: var(--elev);
+  border-radius: 10px;
+  margin-bottom: 6px;
+}
+
+.wp-output-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.wp-output .wp-icon-btn {
+  display: none;
+}
+
+.wp-output:hover .wp-icon-btn {
+  display: inline-flex;
+}
+
+.wp-output-actions {
+  margin-top: 7px;
+  display: flex;
+  gap: 6px;
+}
+
+.wp-open-btn {
+  flex: 1;
+  text-align: center;
+  font-size: 10.5px;
+  padding: 4px 0;
+  border-radius: 7px;
+  border: 1px solid var(--line2);
+  background: transparent;
+  color: var(--ink3);
+  transition: border-color 0.2s, color 0.2s;
+}
+
+.wp-open-btn:hover {
+  border-color: var(--gold-line);
+  color: var(--gold-text);
+}
+
+.wp-download-btn {
+  flex: 1;
+  text-align: center;
+  font-size: 10.5px;
+  padding: 4px 0;
+  border-radius: 7px;
+  border: none;
+  background: var(--gold);
+  color: var(--gold-ink);
+  font-weight: 600;
+  transition: background 0.2s;
+}
+
+.wp-download-btn:hover {
+  background: var(--gold-hi);
+}
+
+/* ─ 收起态 44px 竖条 ─ */
+.wp-collapsed {
+  width: 44px;
+  flex-shrink: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 10px;
+  background: var(--bg);
+  border-right: 1px solid var(--line);
+  padding: 15px 0;
+  cursor: pointer;
+  transition: background 0.2s;
+}
+
+.wp-collapsed:hover {
+  background: var(--gold-dim);
+}
+
+.wp-collapsed-btn {
+  width: 24px;
+  height: 24px;
+  border-radius: 7px;
+  border: 1px solid var(--line);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--ink4);
+}
+
+.wp-collapsed-label {
+  writing-mode: vertical-rl;
+  font-size: 10.5px;
+  letter-spacing: 0.2em;
+  color: var(--ink4);
+}
+
+.wp-collapsed-count {
+  font-size: 9.5px;
+  color: var(--gold-text);
+  background: var(--gold-dim);
+  border-radius: 5px;
+  padding: 4px 2px;
+  writing-mode: vertical-rl;
 }

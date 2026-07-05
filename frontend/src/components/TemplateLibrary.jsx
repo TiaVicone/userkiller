@@ -1,23 +1,20 @@
-import React, { useState, useEffect } from 'react'
-import {
-  X, Search, Star, Clock, FileText, Pin, PinOff, Eye, Trash2,
-  Tag, TrendingUp, Filter, SortAsc, Sparkles, Zap, BookOpen,
-} from 'lucide-react'
+import React, { useState, useEffect, useMemo } from 'react'
+import { X, Search, Pin, PinOff, Trash2, Zap, LayoutGrid, FileText } from 'lucide-react'
 import './TemplateLibrary.css'
 
-function TemplateLibrary({ 
+/** 模板库：数据全部来自 /api/templates，沿用现有 tags/quality 推导逻辑；保留 modal/sidebar 两种模式与 Ctrl+T */
+function TemplateLibrary({
   mode = 'modal',
-  onClose, 
-  onUseTemplate, 
+  onClose,
+  onUseTemplate,
   onToggleMode,
-  currentSession 
+  currentSession,
 }) {
   const [templates, setTemplates] = useState([])
   const [searchQuery, setSearchQuery] = useState('')
-  const [activeCategory, setActiveCategory] = useState('all')
+  const [activeCategory, setActiveCategory] = useState('全部')
   const [loading, setLoading] = useState(false)
   const [sortBy, setSortBy] = useState('recent')
-  const [showFilters, setShowFilters] = useState(false)
   const [selectedTemplate, setSelectedTemplate] = useState(null)
   const [showPreview, setShowPreview] = useState(false)
 
@@ -30,16 +27,16 @@ function TemplateLibrary({
     try {
       const response = await fetch('/api/templates')
       const data = await response.json()
-      
+
       const processedTemplates = (data.templates || []).map(template => {
         const tags = []
         const fileTypes = new Set()
-        
+
         if (template.file_info) {
           template.file_info.forEach(f => {
             const filename = f.filename || f.name || ''
             const ext = filename.toLowerCase().split('.').pop()
-            
+
             if (['xlsx', 'xls'].includes(ext)) {
               tags.push('Excel')
               fileTypes.add('excel')
@@ -55,7 +52,7 @@ function TemplateLibrary({
             }
           })
         }
-        
+
         const desc = (template.description || template.task_description || '').toLowerCase()
         if (desc.includes('填写') || desc.includes('表格')) tags.push('表格填写')
         if (desc.includes('汇总') || desc.includes('统计') || desc.includes('分析')) tags.push('数据分析')
@@ -63,9 +60,9 @@ function TemplateLibrary({
         if (desc.includes('合并') || desc.includes('整合')) tags.push('数据合并')
         if (desc.includes('转换') || desc.includes('导出')) tags.push('格式转换')
         if (desc.includes('批量')) tags.push('批量处理')
-        
+
         const qualityScore = calculateQualityScore(template)
-        
+
         return {
           ...template,
           name: template.name || template.task_description || '未命名模板',
@@ -74,10 +71,10 @@ function TemplateLibrary({
           fileTypes: Array.from(fileTypes),
           qualityScore,
           isNew: isNewTemplate(template.created_at),
-          isPopular: (template.usage_count || 0) >= 5
+          isPopular: (template.usage_count || 0) >= 5,
         }
       })
-      
+
       setTemplates(processedTemplates)
     } catch (error) {
       console.error('加载模板失败:', error)
@@ -111,7 +108,7 @@ function TemplateLibrary({
     if (onUseTemplate) {
       onUseTemplate(templateId)
     }
-    
+
     if (mode === 'modal' && onClose) {
       onClose()
     }
@@ -119,14 +116,14 @@ function TemplateLibrary({
 
   const handleDeleteTemplate = async (templateId, e) => {
     e.stopPropagation()
-    
+
     if (!confirm('确定要删除这个模板吗？此操作不可恢复。')) return
 
     try {
       const response = await fetch(`/api/templates/${templateId}`, {
-        method: 'DELETE'
+        method: 'DELETE',
       })
-      
+
       if (response.ok) {
         setTemplates(templates.filter(t => t.id !== templateId))
         if (selectedTemplate?.id === templateId) {
@@ -140,11 +137,13 @@ function TemplateLibrary({
     }
   }
 
-  const handlePreviewTemplate = (template, e) => {
-    e.stopPropagation()
-    setSelectedTemplate(template)
-    setShowPreview(true)
-  }
+  /* 筛选胶囊：分类由模板 tags 动态生成 */
+  const categories = useMemo(() => {
+    const tagCount = new Map()
+    templates.forEach(t => t.tags.forEach(tag => tagCount.set(tag, (tagCount.get(tag) || 0) + 1)))
+    const sorted = [...tagCount.entries()].sort((a, b) => b[1] - a[1]).map(([tag]) => tag)
+    return ['全部', ...sorted.slice(0, 5)]
+  }, [templates])
 
   const sortedTemplates = [...templates].sort((a, b) => {
     switch (sortBy) {
@@ -161,310 +160,154 @@ function TemplateLibrary({
   })
 
   const filteredTemplates = sortedTemplates.filter(template => {
-    const matchesSearch = template.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-                         template.description.toLowerCase().includes(searchQuery.toLowerCase()) ||
-                         template.tags.some(tag => tag.toLowerCase().includes(searchQuery.toLowerCase()))
-    
-    if (activeCategory === 'all') return matchesSearch
-    if (activeCategory === 'new') return matchesSearch && template.isNew
-    if (activeCategory === 'popular') return matchesSearch && template.isPopular
-    
-    if (['excel', 'word', 'pdf', 'csv'].includes(activeCategory)) {
-      return matchesSearch && template.fileTypes.includes(activeCategory)
-    }
-    
-    return matchesSearch && template.tags.some(tag => 
-      tag.toLowerCase().includes(activeCategory.toLowerCase())
-    )
+    const matchesSearch =
+      template.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      template.description.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      template.tags.some(tag => tag.toLowerCase().includes(searchQuery.toLowerCase()))
+
+    if (activeCategory === '全部') return matchesSearch
+    return matchesSearch && template.tags.includes(activeCategory)
   })
 
-  const categories = [
-    { id: 'all', name: '全部', icon: '📚', count: templates.length },
-    { id: 'new', name: '最新', icon: '✨', count: templates.filter(t => t.isNew).length },
-    { id: 'popular', name: '热门', icon: '🔥', count: templates.filter(t => t.isPopular).length },
-    { id: 'excel', name: 'Excel', icon: '📊', count: templates.filter(t => t.fileTypes.includes('excel')).length },
-    { id: 'word', name: 'Word', icon: '📄', count: templates.filter(t => t.fileTypes.includes('word')).length },
-    { id: 'pdf', name: 'PDF', icon: '📕', count: templates.filter(t => t.fileTypes.includes('pdf')).length },
-  ]
-
-  const formatTime = (timestamp) => {
-    if (!timestamp) return '从未使用'
-    const date = new Date(timestamp)
-    const now = new Date()
-    const diff = now - date
-    const days = Math.floor(diff / (1000 * 60 * 60 * 24))
-    
-    if (days === 0) return '今天'
-    if (days === 1) return '昨天'
-    if (days < 7) return `${days}天前`
-    if (days < 30) return `${Math.floor(days / 7)}周前`
-    return `${Math.floor(days / 30)}个月前`
-  }
-
-  const formatDate = (timestamp) => {
-    if (!timestamp) return '未知'
-    const date = new Date(timestamp)
-    return date.toLocaleDateString('zh-CN', { 
-      year: 'numeric', 
-      month: '2-digit', 
-      day: '2-digit' 
-    })
-  }
-
-  const getQualityBadge = (score) => {
-    if (score >= 80) return { text: '优质', color: '#00d4aa', icon: '⭐' }
-    if (score >= 60) return { text: '良好', color: '#ffb44d', icon: '👍' }
-    return { text: '一般', color: '#888', icon: '📝' }
+  const iconClassFor = (template) => {
+    if (template.fileTypes.includes('excel') || template.fileTypes.includes('csv')) return 'ext-xlsx'
+    if (template.fileTypes.includes('word')) return 'ext-docx'
+    if (template.fileTypes.includes('pdf')) return 'ext-csv'
+    return 'ext-img'
   }
 
   const content = (
-    <div className={`template-library ${mode}`}>
-      {/* 头部 */}
-      <div className="library-header">
-        <div className="header-left">
-          <h3>📚 模板库</h3>
-          <span className="template-count">{templates.length} 个模板</span>
-        </div>
-        <div className="header-actions">
-          <button 
-            className={`icon-btn ${showFilters ? 'active' : ''}`}
-            onClick={() => setShowFilters(!showFilters)}
-            title="筛选和排序"
-          >
-            <Filter size={18} />
+    <div className={`tpl-library ${mode}`}>
+      <div className="tpl-topbar">
+        {mode === 'modal' && onToggleMode && (
+          <button className="tpl-icon-btn" onClick={onToggleMode} title="固定到侧边栏">
+            <Pin size={15} />
           </button>
-          {mode === 'modal' && onToggleMode && (
-            <button 
-              className="icon-btn pin-btn" 
-              onClick={onToggleMode}
-              title="固定到侧边栏"
-            >
-              <Pin size={18} />
-            </button>
-          )}
-          {mode === 'sidebar' && onToggleMode && (
-            <button 
-              className="icon-btn unpin-btn" 
-              onClick={onToggleMode}
-              title="取消固定"
-            >
-              <PinOff size={18} />
-            </button>
-          )}
-          {mode === 'modal' && onClose && (
-            <button className="icon-btn close-btn" onClick={onClose}>
-              <X size={20} />
-            </button>
-          )}
-        </div>
+        )}
+        {mode === 'sidebar' && onToggleMode && (
+          <button className="tpl-icon-btn" onClick={onToggleMode} title="取消固定">
+            <PinOff size={15} />
+          </button>
+        )}
+        {mode === 'modal' && onClose && (
+          <button className="tpl-icon-btn" onClick={onClose} title="关闭 (Esc)">
+            <X size={16} />
+          </button>
+        )}
       </div>
 
-      {/* 主体区域 - 侧边栏布局 */}
-      <div className="library-body">
-        {/* 左侧分类栏 */}
-        <div className="category-sidebar">
-          <div className="category-tabs">
-            {categories.map(category => (
-              <button
-                key={category.id}
-                className={`category-tab ${activeCategory === category.id ? 'active' : ''}`}
-                onClick={() => setActiveCategory(category.id)}
-              >
-                <span className="category-icon">{category.icon}</span>
-                <span className="category-name">{category.name}</span>
-                <span className="category-count">({category.count})</span>
-              </button>
-            ))}
-          </div>
-        </div>
+      <div className="tpl-scroll">
+        <div className="tpl-page">
+          <p className="uk-kicker tpl-kicker">模板库 · TEMPLATES</p>
+          <h1 className="uk-serif tpl-title">把成功的任务，存成一键复用的模板。</h1>
+          <p className="tpl-intro">每个模板记住了它需要的文件类型与处理流程。选一个模板，上传对应文件，直接开跑。</p>
 
-        {/* 右侧内容区 */}
-        <div className="content-area">
-          {/* 搜索和排序 */}
-          <div className="search-section">
-            <div className="search-bar">
-              <Search size={16} className="search-icon" />
+          <div className="tpl-toolbar">
+            <div className="tpl-search">
+              <Search size={13} className="tpl-search-icon" />
               <input
-                type="text"
-                placeholder="搜索模板名称、描述或标签..."
+                placeholder="搜索模板…"
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
               />
             </div>
-            
-            {showFilters && (
-              <div className="filter-options">
-                <div className="filter-group">
-                  <label>排序方式</label>
-                  <div className="sort-buttons">
-                    <button 
-                      className={`sort-btn ${sortBy === 'recent' ? 'active' : ''}`}
-                      onClick={() => setSortBy('recent')}
-                    >
-                      <Clock size={14} />
-                      最新
-                    </button>
-                    <button 
-                      className={`sort-btn ${sortBy === 'usage' ? 'active' : ''}`}
-                      onClick={() => setSortBy('usage')}
-                    >
-                      <TrendingUp size={14} />
-                      最常用
-                    </button>
-                    <button 
-                      className={`sort-btn ${sortBy === 'quality' ? 'active' : ''}`}
-                      onClick={() => setSortBy('quality')}
-                    >
-                      <Star size={14} />
-                      质量
-                    </button>
-                    <button 
-                      className={`sort-btn ${sortBy === 'name' ? 'active' : ''}`}
-                      onClick={() => setSortBy('name')}
-                    >
-                      <SortAsc size={14} />
-                      名称
-                    </button>
-                  </div>
-                </div>
-              </div>
-            )}
+            {categories.map(c => (
+              <span
+                key={c}
+                className={`tpl-filter ${activeCategory === c ? 'on' : ''}`}
+                onClick={() => setActiveCategory(c)}
+              >
+                {c}
+              </span>
+            ))}
           </div>
 
-          {/* 模板列表 - 添加滚动 */}
-          <div className="templates-list">
-            {loading ? (
-              <div className="loading-state">
-                <div className="spinner"></div>
-                <p>加载中...</p>
-              </div>
-            ) : filteredTemplates.length === 0 ? (
-              <div className="empty-state">
-                <div className="empty-icon">
-                  {searchQuery ? '🔍' : '📭'}
-                </div>
-                <p>{searchQuery ? '未找到匹配的模板' : '暂无模板'}</p>
-                <span>
-                  {searchQuery 
-                    ? '尝试使用其他关键词搜索' 
-                    : '完成任务后保存为模板，方便下次快速复用'}
-                </span>
-              </div>
-            ) : (
-              filteredTemplates.map(template => {
-                const quality = getQualityBadge(template.qualityScore)
-                
-                return (
-                  <div 
-                    key={template.id} 
-                    className="template-card"
-                    onClick={() => handlePreviewTemplate(template, { stopPropagation: () => {} })}
-                  >
-                    <div className="template-header">
-                      <div className="template-title-row">
-                        <Star size={18} className="template-icon" />
-                        <h4 className="template-name">{template.name}</h4>
-                      </div>
-                      <div className="template-badges">
-                        {template.isNew && (
-                          <span className="badge badge-new">
-                            <Sparkles size={12} />
-                            新
-                          </span>
-                        )}
-                        {template.isPopular && (
-                          <span className="badge badge-popular">
-                            <Zap size={12} />
-                            热门
-                          </span>
-                        )}
-                        <span 
-                          className="badge badge-quality"
-                          style={{ background: `${quality.color}20`, color: quality.color }}
-                        >
-                          {quality.icon} {quality.text}
-                        </span>
-                      </div>
-                    </div>
-
-                    <p className="template-desc">{template.description}</p>
-
-                    <div className="template-meta">
-                      <span className="meta-item">
-                        <TrendingUp size={14} />
-                        使用 {template.usage_count || 0} 次
-                      </span>
-                      <span className="meta-item">
-                        <Clock size={14} />
-                        {formatTime(template.last_used || template.created_at)}
-                      </span>
-                    </div>
-
-                    {template.tags && template.tags.length > 0 && (
-                      <div className="template-tags">
-                        {template.tags.slice(0, 3).map((tag, index) => (
-                          <span key={index} className="tag">
-                            <Tag size={10} />
-                            {tag}
-                          </span>
-                        ))}
-                        {template.tags.length > 3 && (
-                          <span className="tag tag-more">+{template.tags.length - 3}</span>
-                        )}
-                      </div>
-                    )}
-
-                    <div className="template-actions">
-                      <button
-                        className="btn-primary btn-use"
-                        onClick={(e) => {
-                          e.stopPropagation()
-                          handleUseTemplate(template.id)
-                        }}
-                      >
-                        <Zap size={14} />
-                        立即使用
-                      </button>
-                      <button 
-                        className="btn-secondary btn-preview"
-                        onClick={(e) => handlePreviewTemplate(template, e)}
-                      >
-                        <Eye size={14} />
-                        预览
-                      </button>
-                      <button 
-                        className="btn-icon btn-delete"
-                        onClick={(e) => handleDeleteTemplate(template.id, e)}
-                        title="删除模板"
-                      >
-                        <Trash2 size={14} />
-                      </button>
-                    </div>
-                  </div>
-                )
-              })
-            )}
+          <div className="tpl-sort-row uk-mono">
+            <span>排序</span>
+            {[
+              { id: 'recent', label: '最新' },
+              { id: 'usage', label: '最常用' },
+              { id: 'quality', label: '质量' },
+              { id: 'name', label: '名称' },
+            ].map(s => (
+              <span
+                key={s.id}
+                className={`tpl-sort ${sortBy === s.id ? 'on' : ''}`}
+                onClick={() => setSortBy(s.id)}
+              >
+                {s.label}
+              </span>
+            ))}
           </div>
+
+          {loading ? (
+            <div className="tpl-empty">
+              <p>加载中…</p>
+            </div>
+          ) : filteredTemplates.length === 0 ? (
+            <div className="tpl-empty">
+              <p>{searchQuery ? '未找到匹配的模板' : '暂无模板'}</p>
+              <span>
+                {searchQuery ? '尝试使用其他关键词搜索' : '完成任务后点「保存为模板」，方便下次快速复用'}
+              </span>
+            </div>
+          ) : (
+            <div className="tpl-grid">
+              {filteredTemplates.map(template => (
+                <div
+                  key={template.id}
+                  className="tpl-card"
+                  onClick={() => {
+                    setSelectedTemplate(template)
+                    setShowPreview(true)
+                  }}
+                >
+                  <div className="tpl-card-top">
+                    <div className={`tpl-card-icon uk-file-tag ${iconClassFor(template)}`}>
+                      <LayoutGrid size={16} />
+                    </div>
+                    <div className="tpl-card-main">
+                      <div className="tpl-card-name-row">
+                        <span className="tpl-card-name">{template.name}</span>
+                        {template.isNew && <span className="tpl-card-new uk-mono">NEW</span>}
+                      </div>
+                      <div className="tpl-card-desc">{template.description}</div>
+                    </div>
+                    <button
+                      className="tpl-card-del"
+                      title="删除模板"
+                      onClick={(e) => handleDeleteTemplate(template.id, e)}
+                    >
+                      <Trash2 size={12} />
+                    </button>
+                  </div>
+                  {template.tags.length > 0 && (
+                    <div className="tpl-card-tags">
+                      {template.tags.slice(0, 4).map(tag => (
+                        <span key={tag} className="tpl-card-tag">{tag}</span>
+                      ))}
+                    </div>
+                  )}
+                  <div className="tpl-card-foot">
+                    <span className="uk-mono">已用 {template.usage_count || 0} 次</span>
+                    <span className="uk-mono">质量 {template.qualityScore}</span>
+                    <span
+                      className="tpl-card-use"
+                      onClick={(e) => {
+                        e.stopPropagation()
+                        handleUseTemplate(template.id)
+                      }}
+                    >
+                      使用 →
+                    </span>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
         </div>
       </div>
 
-      {/* 底部统计信息 */}
-      {templates.length > 0 && (
-        <div className="library-footer">
-          <div className="footer-stats">
-            <div className="stat-item">
-              <BookOpen size={16} />
-              <span>{templates.length} 个模板</span>
-            </div>
-            <div className="stat-item">
-              <TrendingUp size={16} />
-              <span>{templates.reduce((sum, t) => sum + (t.usage_count || 0), 0)} 次使用</span>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* 模板预览弹窗 */}
       {showPreview && selectedTemplate && (
         <TemplatePreview
           template={selectedTemplate}
@@ -480,8 +323,8 @@ function TemplateLibrary({
 
   if (mode === 'modal') {
     return (
-      <div className="template-modal-overlay" onClick={onClose}>
-        <div className="template-modal-content" onClick={(e) => e.stopPropagation()}>
+      <div className="tpl-modal-overlay" onClick={onClose}>
+        <div className="tpl-modal-content" onClick={(e) => e.stopPropagation()}>
           {content}
         </div>
       </div>
@@ -491,81 +334,63 @@ function TemplateLibrary({
   return content
 }
 
-// 模板预览组件
+/** 模板预览弹窗 */
 function TemplatePreview({ template, onClose, onUse }) {
-  const quality = template.qualityScore >= 80 ? '优质' : template.qualityScore >= 60 ? '良好' : '一般'
-  
   return (
-    <div className="preview-overlay" onClick={onClose}>
-      <div className="preview-content" onClick={(e) => e.stopPropagation()}>
-        <div className="preview-header">
-          <h3>{template.name}</h3>
-          <button className="icon-btn" onClick={onClose}>
-            <X size={20} />
+    <div className="tpl-preview-overlay" onClick={onClose}>
+      <div className="tpl-preview" onClick={(e) => e.stopPropagation()}>
+        <div className="tpl-preview-head">
+          <h3 className="uk-serif">{template.name}</h3>
+          <button className="tpl-icon-btn" onClick={onClose}>
+            <X size={16} />
           </button>
         </div>
-        
-        <div className="preview-body">
-          <div className="preview-section">
-            <h4>📝 描述</h4>
+
+        <div className="tpl-preview-body">
+          <div className="tpl-preview-section">
+            <div className="tpl-preview-label">描述</div>
             <p>{template.description}</p>
           </div>
-          
-          <div className="preview-section">
-            <h4>📊 统计信息</h4>
-            <div className="preview-stats">
-              <div className="stat">
-                <span className="stat-label">使用次数</span>
-                <span className="stat-value">{template.usage_count || 0}</span>
-              </div>
-              <div className="stat">
-                <span className="stat-label">质量评分</span>
-                <span className="stat-value">{template.qualityScore}/100</span>
-              </div>
-              <div className="stat">
-                <span className="stat-label">创建时间</span>
-                <span className="stat-value">
-                  {new Date(template.created_at).toLocaleDateString('zh-CN')}
-                </span>
-              </div>
+
+          <div className="tpl-preview-section">
+            <div className="tpl-preview-label">统计</div>
+            <div className="tpl-preview-stats uk-mono">
+              <span>使用 {template.usage_count || 0} 次</span>
+              <span>质量 {template.qualityScore}/100</span>
+              <span>{template.created_at ? new Date(template.created_at).toLocaleDateString('zh-CN') : ''}</span>
             </div>
           </div>
-          
+
           {template.file_info && template.file_info.length > 0 && (
-            <div className="preview-section">
-              <h4>📁 需要的文件</h4>
-              <ul className="file-list">
+            <div className="tpl-preview-section">
+              <div className="tpl-preview-label">需要的文件</div>
+              <ul className="tpl-preview-files">
                 {template.file_info.map((file, index) => (
                   <li key={index}>
-                    <FileText size={14} />
+                    <FileText size={12} />
                     {file.filename || file.name}
                   </li>
                 ))}
               </ul>
             </div>
           )}
-          
+
           {template.tags && template.tags.length > 0 && (
-            <div className="preview-section">
-              <h4>🏷️ 标签</h4>
-              <div className="template-tags">
-                {template.tags.map((tag, index) => (
-                  <span key={index} className="tag">
-                    <Tag size={10} />
-                    {tag}
-                  </span>
+            <div className="tpl-preview-section">
+              <div className="tpl-preview-label">标签</div>
+              <div className="tpl-card-tags">
+                {template.tags.map(tag => (
+                  <span key={tag} className="tpl-card-tag">{tag}</span>
                 ))}
               </div>
             </div>
           )}
         </div>
-        
-        <div className="preview-footer">
-          <button className="btn-secondary" onClick={onClose}>
-            取消
-          </button>
-          <button className="btn-primary" onClick={onUse}>
-            <Zap size={16} />
+
+        <div className="tpl-preview-foot">
+          <button className="uk-ghost-btn tpl-preview-cancel" onClick={onClose}>取消</button>
+          <button className="uk-gold-btn tpl-preview-use" onClick={onUse}>
+            <Zap size={13} />
             立即使用
           </button>
         </div>
